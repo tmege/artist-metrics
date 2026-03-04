@@ -20,11 +20,14 @@ artist-dashboard/
 │   │   │   ├── login/              # Login page
 │   │   │   ├── signup/             # Signup page
 │   │   │   └── dashboard/
-│   │   │       ├── page.tsx        # Dashboard home (KPIs)
+│   │   │       ├── page.tsx        # Redirects to /dashboard/artists
+│   │   │       ├── settings/       # Change password, sign out
 │   │   │       └── artists/
-│   │   │           ├── page.tsx    # Artists list
+│   │   │           ├── page.tsx    # Artist selection prompt
 │   │   │           ├── new/        # Create artist
-│   │   │           └── [id]/       # Artist detail + social metrics
+│   │   │           └── [id]/       # Artist detail (YouTube, Instagram, TikTok cards)
+│   │   ├── src/contexts/
+│   │   │   └── artists-context.tsx # Shared artists list (React Context)
 │   │   ├── src/lib/
 │   │   │   ├── api.ts             # API client with auth headers
 │   │   │   └── supabase/          # Supabase client (browser + server)

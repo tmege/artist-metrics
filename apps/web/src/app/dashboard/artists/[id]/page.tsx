@@ -4,17 +4,11 @@ import { useEffect, useState } from "react";
 import { apiFetch } from "@/lib/api";
 import { useParams, useRouter } from "next/navigation";
 import {
-  ArrowLeft,
   Music,
-  Users,
-  Eye,
-  Heart,
-  Play,
   RefreshCw,
-  Plus,
   Trash2,
 } from "lucide-react";
-import Link from "next/link";
+import { useArtists } from "@/contexts/artists-context";
 
 interface SocialMetrics {
   followers: number | null;
@@ -41,10 +35,31 @@ interface ArtistDetail {
   socialAccounts: SocialAccount[];
 }
 
-const platformConfig = {
-  youtube: { label: "YouTube", color: "text-red-500", bg: "bg-red-500/10" },
-  instagram: { label: "Instagram", color: "text-pink-500", bg: "bg-pink-500/10" },
-  tiktok: { label: "TikTok", color: "text-cyan-400", bg: "bg-cyan-400/10" },
+const PLATFORMS = ["youtube", "instagram", "tiktok"] as const;
+type Platform = (typeof PLATFORMS)[number];
+
+const platformConfig: Record<Platform, { label: string; color: string; bg: string; border: string; placeholder: string }> = {
+  youtube: {
+    label: "YouTube",
+    color: "text-red-500",
+    bg: "bg-red-500/10",
+    border: "border-red-500/30",
+    placeholder: "https://youtube.com/@handle or channel URL",
+  },
+  instagram: {
+    label: "Instagram",
+    color: "text-pink-500",
+    bg: "bg-pink-500/10",
+    border: "border-pink-500/30",
+    placeholder: "https://instagram.com/username or @username",
+  },
+  tiktok: {
+    label: "TikTok",
+    color: "text-cyan-400",
+    bg: "bg-cyan-400/10",
+    border: "border-cyan-400/30",
+    placeholder: "https://tiktok.com/@username or @username",
+  },
 };
 
 function formatNumber(n: number | null | undefined): string {
@@ -57,14 +72,17 @@ function formatNumber(n: number | null | undefined): string {
 export default function ArtistDetailPage() {
   const params = useParams();
   const router = useRouter();
+  const { refreshArtists } = useArtists();
   const [artist, setArtist] = useState<ArtistDetail | null>(null);
   const [loading, setLoading] = useState(true);
   const [syncing, setSyncing] = useState<string | null>(null);
-  const [showConnect, setShowConnect] = useState(false);
-  const [connectPlatform, setConnectPlatform] = useState<string>("");
-  const [connectUrl, setConnectUrl] = useState("");
-  const [connectError, setConnectError] = useState<string | null>(null);
-  const [connectLoading, setConnectLoading] = useState(false);
+  const [connectingPlatform, setConnectingPlatform] = useState<Platform | null>(null);
+  const [connectUrls, setConnectUrls] = useState<Record<Platform, string>>({
+    youtube: "",
+    instagram: "",
+    tiktok: "",
+  });
+  const [connectErrors, setConnectErrors] = useState<Record<string, string | null>>({});
 
   const artistId = params.id as string;
 
@@ -104,29 +122,27 @@ export default function ArtistDetailPage() {
     }
   }
 
-  async function handleConnect(e: React.FormEvent) {
-    e.preventDefault();
-    setConnectError(null);
-    setConnectLoading(true);
+  async function handleConnect(platform: Platform) {
+    const url = connectUrls[platform].trim();
+    if (!url) return;
+
+    setConnectingPlatform(platform);
+    setConnectErrors((prev) => ({ ...prev, [platform]: null }));
 
     try {
       await apiFetch(`/artists/${artistId}/social-accounts`, {
         method: "POST",
-        body: JSON.stringify({
-          platform: connectPlatform,
-          url: connectUrl,
-        }),
+        body: JSON.stringify({ platform, url }),
       });
-      setShowConnect(false);
-      setConnectUrl("");
-      setConnectPlatform("");
+      setConnectUrls((prev) => ({ ...prev, [platform]: "" }));
       fetchArtist();
     } catch (err) {
-      setConnectError(
-        err instanceof Error ? err.message : "Failed to connect account"
-      );
+      setConnectErrors((prev) => ({
+        ...prev,
+        [platform]: err instanceof Error ? err.message : "Failed to connect",
+      }));
     } finally {
-      setConnectLoading(false);
+      setConnectingPlatform(null);
     }
   }
 
@@ -140,26 +156,12 @@ export default function ArtistDetailPage() {
 
   if (!artist) return null;
 
-  // Connected platforms
-  const connectedPlatforms = new Set(
-    artist.socialAccounts.map((a) => a.platform)
-  );
-  const availablePlatforms = (
-    ["youtube", "instagram", "tiktok"] as const
-  ).filter((p) => !connectedPlatforms.has(p));
+  const accountByPlatform = Object.fromEntries(
+    artist.socialAccounts.map((a) => [a.platform, a])
+  ) as Partial<Record<Platform, SocialAccount>>;
 
   return (
     <div className="space-y-6">
-      <div>
-        <Link
-          href="/dashboard/artists"
-          className="inline-flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground transition-colors"
-        >
-          <ArrowLeft className="h-4 w-4" />
-          Back to artists
-        </Link>
-      </div>
-
       {/* Artist Header */}
       <div className="flex items-center gap-4">
         {artist.imageUrl ? (
@@ -182,260 +184,129 @@ export default function ArtistDetailPage() {
         </div>
       </div>
 
-      {/* KPI Summary */}
-      {artist.socialAccounts.length > 0 && (
-        <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
-          {[
-            {
-              label: "Total Followers",
-              value: artist.socialAccounts.reduce(
-                (sum, a) => sum + (a.latestMetrics?.followers || 0),
-                0
-              ),
-              icon: Users,
-            },
-            {
-              label: "Total Views",
-              value: artist.socialAccounts.reduce(
-                (sum, a) => sum + (a.latestMetrics?.views || 0),
-                0
-              ),
-              icon: Eye,
-            },
-            {
-              label: "Total Likes",
-              value: artist.socialAccounts.reduce(
-                (sum, a) => sum + (a.latestMetrics?.likes || 0),
-                0
-              ),
-              icon: Heart,
-            },
-            {
-              label: "Total Posts",
-              value: artist.socialAccounts.reduce(
-                (sum, a) => sum + (a.latestMetrics?.posts || 0),
-                0
-              ),
-              icon: Play,
-            },
-          ].map((kpi) => (
+      {/* 3 Platform Cards */}
+      <div className="grid gap-4 lg:grid-cols-3">
+        {PLATFORMS.map((platform) => {
+          const cfg = platformConfig[platform];
+          const account = accountByPlatform[platform];
+          const m = account?.latestMetrics;
+
+          return (
             <div
-              key={kpi.label}
-              className="rounded-lg border border-border bg-card p-6"
+              key={platform}
+              className={`rounded-lg border bg-card p-6 ${account ? "border-border" : cfg.border + " border-dashed"}`}
             >
+              {/* Platform header */}
               <div className="flex items-center justify-between">
-                <p className="text-sm text-muted-foreground">{kpi.label}</p>
-                <kpi.icon className="h-4 w-4 text-muted-foreground" />
-              </div>
-              <p className="mt-2 text-2xl font-bold">
-                {formatNumber(kpi.value)}
-              </p>
-            </div>
-          ))}
-        </div>
-      )}
-
-      {/* Social Accounts */}
-      <div className="space-y-4">
-        <div className="flex items-center justify-between">
-          <h4 className="text-lg font-semibold">Social Accounts</h4>
-          {availablePlatforms.length > 0 && (
-            <button
-              onClick={() => setShowConnect(true)}
-              className="flex items-center gap-2 rounded-md bg-primary px-3 py-1.5 text-sm font-medium text-primary-foreground hover:bg-primary/90 transition-colors"
-            >
-              <Plus className="h-4 w-4" />
-              Connect Account
-            </button>
-          )}
-        </div>
-
-        {/* Connect Modal */}
-        {showConnect && (
-          <form
-            onSubmit={handleConnect}
-            className="rounded-lg border border-primary/30 bg-card p-6 space-y-4"
-          >
-            <h5 className="font-semibold">Connect Social Account</h5>
-            <div>
-              <label className="block text-sm font-medium text-foreground">
-                Platform
-              </label>
-              <select
-                value={connectPlatform}
-                onChange={(e) => setConnectPlatform(e.target.value)}
-                required
-                className="mt-1 block w-full rounded-md border border-border bg-background px-3 py-2 text-sm text-foreground focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary"
-              >
-                <option value="">Select platform</option>
-                {availablePlatforms.map((p) => (
-                  <option key={p} value={p}>
-                    {platformConfig[p].label}
-                  </option>
-                ))}
-              </select>
-            </div>
-            <div>
-              <label className="block text-sm font-medium text-foreground">
-                Profile URL or Handle
-              </label>
-              <input
-                type="text"
-                name="social-url"
-                autoComplete="off"
-                value={connectUrl}
-                onChange={(e) => setConnectUrl(e.target.value)}
-                required
-                className="mt-1 block w-full rounded-md border border-border bg-background px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary"
-                placeholder={
-                  connectPlatform === "youtube"
-                    ? "https://youtube.com/@handle or channel URL"
-                    : connectPlatform === "instagram"
-                      ? "https://instagram.com/username or @username"
-                      : "https://tiktok.com/@username or @username"
-                }
-              />
-            </div>
-            {connectError && (
-              <p className="text-sm text-red-500">{connectError}</p>
-            )}
-            <div className="flex gap-2">
-              <button
-                type="submit"
-                disabled={connectLoading}
-                className="rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:bg-primary/90 disabled:opacity-50 transition-colors"
-              >
-                {connectLoading ? "Connecting..." : "Connect"}
-              </button>
-              <button
-                type="button"
-                onClick={() => {
-                  setShowConnect(false);
-                  setConnectError(null);
-                }}
-                className="rounded-md border border-border px-4 py-2 text-sm font-medium text-foreground hover:bg-secondary transition-colors"
-              >
-                Cancel
-              </button>
-            </div>
-          </form>
-        )}
-
-        {artist.socialAccounts.length === 0 && !showConnect ? (
-          <div className="rounded-lg border border-border bg-card p-8 text-center">
-            <p className="text-muted-foreground">
-              No social accounts connected yet. Connect a platform to start
-              tracking metrics.
-            </p>
-          </div>
-        ) : (
-          <div className="space-y-3">
-            {artist.socialAccounts.map((account) => {
-              const cfg = platformConfig[account.platform];
-              const m = account.latestMetrics;
-
-              return (
-                <div
-                  key={account.id}
-                  className="rounded-lg border border-border bg-card p-6"
+                <span
+                  className={`inline-flex items-center rounded-md px-2.5 py-0.5 text-xs font-medium ${cfg.color} ${cfg.bg}`}
                 >
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-3">
-                      <span
-                        className={`inline-flex items-center rounded-md px-2.5 py-0.5 text-xs font-medium ${cfg.color} ${cfg.bg}`}
-                      >
-                        {cfg.label}
-                      </span>
-                      <span className="text-sm font-medium">
-                        {account.username || account.platformAccountId}
-                      </span>
-                      {account.isOAuthConnected && (
-                        <span className="text-xs text-emerald-500">
-                          OAuth connected
-                        </span>
-                      )}
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <button
-                        onClick={() => handleSync(account.id)}
-                        disabled={syncing === account.id}
-                        className="rounded-md p-1.5 text-muted-foreground hover:bg-secondary hover:text-foreground transition-colors disabled:opacity-50"
-                        title="Sync metrics"
-                      >
-                        <RefreshCw
-                          className={`h-4 w-4 ${syncing === account.id ? "animate-spin" : ""}`}
-                        />
-                      </button>
-                      <button
-                        type="button"
-                        onClick={(e) => {
-                          e.preventDefault();
-                          e.stopPropagation();
-                          handleDisconnect(account.id);
-                        }}
-                        className="rounded-md p-1.5 text-muted-foreground hover:bg-red-500/10 hover:text-red-500 transition-colors"
-                        title="Disconnect"
-                      >
-                        <Trash2 className="h-4 w-4" />
-                      </button>
-                    </div>
+                  {cfg.label}
+                </span>
+                {account && (
+                  <div className="flex items-center gap-1">
+                    <button
+                      onClick={() => handleSync(account.id)}
+                      disabled={syncing === account.id}
+                      className="rounded-md p-1.5 text-muted-foreground hover:bg-secondary hover:text-foreground transition-colors disabled:opacity-50"
+                      title="Sync metrics"
+                    >
+                      <RefreshCw
+                        className={`h-4 w-4 ${syncing === account.id ? "animate-spin" : ""}`}
+                      />
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => handleDisconnect(account.id)}
+                      className="rounded-md p-1.5 text-muted-foreground hover:bg-red-500/10 hover:text-red-500 transition-colors"
+                      title="Disconnect"
+                    >
+                      <Trash2 className="h-4 w-4" />
+                    </button>
                   </div>
+                )}
+              </div>
+
+              {account ? (
+                <>
+                  <p className="mt-2 text-sm font-medium">
+                    {account.username || account.platformAccountId}
+                  </p>
+                  {account.isOAuthConnected && (
+                    <span className="text-xs text-emerald-500">OAuth connected</span>
+                  )}
 
                   {m ? (
                     <>
-                      <div className="mt-4 grid grid-cols-2 gap-4 sm:grid-cols-4">
+                      <div className="mt-4 grid grid-cols-2 gap-3">
                         <div>
-                          <p className="text-xs text-muted-foreground">
-                            Followers
-                          </p>
-                          <p className="text-lg font-semibold">
-                            {formatNumber(m.followers)}
-                          </p>
+                          <p className="text-xs text-muted-foreground">Followers</p>
+                          <p className="text-lg font-semibold">{formatNumber(m.followers)}</p>
                         </div>
                         <div>
                           <p className="text-xs text-muted-foreground">Views</p>
-                          <p className="text-lg font-semibold">
-                            {formatNumber(m.views)}
-                          </p>
+                          <p className="text-lg font-semibold">{formatNumber(m.views)}</p>
                         </div>
                         <div>
                           <p className="text-xs text-muted-foreground">Likes</p>
-                          <p className="text-lg font-semibold">
-                            {formatNumber(m.likes)}
-                          </p>
+                          <p className="text-lg font-semibold">{formatNumber(m.likes)}</p>
                         </div>
                         <div>
                           <p className="text-xs text-muted-foreground">Posts</p>
-                          <p className="text-lg font-semibold">
-                            {formatNumber(m.posts)}
-                          </p>
+                          <p className="text-lg font-semibold">{formatNumber(m.posts)}</p>
                         </div>
                       </div>
                       <p className="mt-3 text-xs text-muted-foreground">
-                        Last synced:{" "}
-                        {new Date(m.fetchedAt).toLocaleString()}
+                        Last synced: {new Date(m.fetchedAt).toLocaleString()}
                       </p>
                     </>
                   ) : !account.isOAuthConnected &&
-                    (account.platform === "instagram" ||
-                      account.platform === "tiktok") ? (
-                    <div className="mt-4 rounded-md bg-secondary/50 p-4 flex items-center justify-between">
-                      <p className="text-sm text-muted-foreground">
+                    (platform === "instagram" || platform === "tiktok") ? (
+                    <div className="mt-4 rounded-md bg-secondary/50 p-3">
+                      <p className="text-sm text-muted-foreground mb-2">
                         Metrics require OAuth connection.
                       </p>
                       <a
-                        href={`${process.env.NEXT_PUBLIC_API_URL || "http://localhost:3001"}/oauth/${account.platform}/authorize?accountId=${account.id}`}
-                        className="rounded-md bg-primary px-3 py-1.5 text-sm font-medium text-primary-foreground hover:bg-primary/90 transition-colors whitespace-nowrap"
+                        href={`${process.env.NEXT_PUBLIC_API_URL || "http://localhost:3001"}/oauth/${platform}/authorize?accountId=${account.id}`}
+                        className="rounded-md bg-primary px-3 py-1.5 text-sm font-medium text-primary-foreground hover:bg-primary/90 transition-colors"
                       >
-                        Connect {account.platform === "instagram" ? "Instagram" : "TikTok"}
+                        Connect {cfg.label}
                       </a>
                     </div>
-                  ) : null}
+                  ) : (
+                    <p className="mt-4 text-sm text-muted-foreground">
+                      No metrics yet. Click sync to fetch.
+                    </p>
+                  )}
+                </>
+              ) : (
+                /* Not connected — inline connect form */
+                <div className="mt-4 space-y-3">
+                  <p className="text-sm text-muted-foreground">Not connected</p>
+                  <input
+                    type="text"
+                    value={connectUrls[platform]}
+                    onChange={(e) =>
+                      setConnectUrls((prev) => ({ ...prev, [platform]: e.target.value }))
+                    }
+                    placeholder={cfg.placeholder}
+                    className="block w-full rounded-md border border-border bg-background px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary"
+                  />
+                  {connectErrors[platform] && (
+                    <p className="text-xs text-red-500">{connectErrors[platform]}</p>
+                  )}
+                  <button
+                    onClick={() => handleConnect(platform)}
+                    disabled={connectingPlatform === platform || !connectUrls[platform].trim()}
+                    className={`w-full rounded-md px-3 py-1.5 text-sm font-medium transition-colors disabled:opacity-50 ${cfg.bg} ${cfg.color} hover:opacity-80`}
+                  >
+                    {connectingPlatform === platform ? "Connecting..." : `Connect ${cfg.label}`}
+                  </button>
                 </div>
-              );
-            })}
-          </div>
-        )}
+              )}
+            </div>
+          );
+        })}
       </div>
     </div>
   );

@@ -5,12 +5,14 @@ import { apiFetch } from "@/lib/api";
 import { useRouter } from "next/navigation";
 import { ArrowLeft } from "lucide-react";
 import Link from "next/link";
+import { useArtists } from "@/contexts/artists-context";
 
 export default function NewArtistPage() {
   const [name, setName] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const router = useRouter();
+  const { refreshArtists } = useArtists();
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -18,11 +20,12 @@ export default function NewArtistPage() {
     setLoading(true);
 
     try {
-      await apiFetch("/artists", {
+      const res = await apiFetch<{ data: { id: string } }>("/artists", {
         method: "POST",
         body: JSON.stringify({ name }),
       });
-      router.push("/dashboard/artists");
+      await refreshArtists();
+      router.push(`/dashboard/artists/${res.data.id}`);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to create artist");
     } finally {

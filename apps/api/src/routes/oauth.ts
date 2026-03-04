@@ -32,7 +32,7 @@ export async function oauthRoutes(app: FastifyInstance) {
       authUrl.searchParams.set("state", state);
       authUrl.searchParams.set(
         "scope",
-        "instagram_basic,instagram_manage_insights,pages_show_list"
+        "business_management,instagram_basic,instagram_manage_insights,pages_show_list,pages_read_engagement"
       );
       authUrl.searchParams.set("response_type", "code");
 
