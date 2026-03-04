@@ -72,6 +72,8 @@ artist-dashboard/
 
 All platforms can be linked via URL or handle. YouTube fetches public stats immediately via API key. Instagram and TikTok require OAuth to fetch metrics.
 
+> **Note:** Meta (Instagram) and TikTok OAuth are not yet implemented. Both platforms require extensive app review and verification processes before API access is granted.
+
 ## Getting Started
 
 ### Prerequisites
