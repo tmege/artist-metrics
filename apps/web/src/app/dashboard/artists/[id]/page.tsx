@@ -83,6 +83,7 @@ export default function ArtistDetailPage() {
     tiktok: "",
   });
   const [connectErrors, setConnectErrors] = useState<Record<string, string | null>>({});
+  const [deleting, setDeleting] = useState(false);
 
   const artistId = params.id as string;
 
@@ -119,6 +120,19 @@ export default function ArtistDetailPage() {
       fetchArtist();
     } catch (err) {
       alert(err instanceof Error ? err.message : "Failed to disconnect");
+    }
+  }
+
+  async function handleDelete() {
+    if (!confirm(`Supprimer ${artist?.name} ? Cette action est irréversible.`)) return;
+    setDeleting(true);
+    try {
+      await apiFetch(`/artists/${artistId}`, { method: "DELETE" });
+      await refreshArtists();
+      router.push("/dashboard/artists");
+    } catch (err) {
+      alert(err instanceof Error ? err.message : "Failed to delete artist");
+      setDeleting(false);
     }
   }
 
@@ -163,25 +177,35 @@ export default function ArtistDetailPage() {
   return (
     <div className="space-y-6">
       {/* Artist Header */}
-      <div className="flex items-center gap-4">
-        {artist.imageUrl ? (
-          <img
-            src={artist.imageUrl}
-            alt={artist.name}
-            className="h-16 w-16 rounded-full object-cover"
-          />
-        ) : (
-          <div className="flex h-16 w-16 items-center justify-center rounded-full bg-secondary">
-            <Music className="h-8 w-8 text-muted-foreground" />
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-4">
+          {artist.imageUrl ? (
+            <img
+              src={artist.imageUrl}
+              alt={artist.name}
+              className="h-16 w-16 rounded-full object-cover"
+            />
+          ) : (
+            <div className="flex h-16 w-16 items-center justify-center rounded-full bg-secondary">
+              <Music className="h-8 w-8 text-muted-foreground" />
+            </div>
+          )}
+          <div>
+            <h3 className="text-2xl font-bold">{artist.name}</h3>
+            <p className="text-sm text-muted-foreground">
+              {artist.socialAccounts.length} connected account
+              {artist.socialAccounts.length !== 1 ? "s" : ""}
+            </p>
           </div>
-        )}
-        <div>
-          <h3 className="text-2xl font-bold">{artist.name}</h3>
-          <p className="text-sm text-muted-foreground">
-            {artist.socialAccounts.length} connected account
-            {artist.socialAccounts.length !== 1 ? "s" : ""}
-          </p>
         </div>
+        <button
+          onClick={handleDelete}
+          disabled={deleting}
+          className="inline-flex items-center gap-2 rounded-md border border-red-500/30 px-3 py-2 text-sm font-medium text-red-500 hover:bg-red-500/10 transition-colors disabled:opacity-50"
+        >
+          <Trash2 className="h-4 w-4" />
+          {deleting ? "Suppression..." : "Supprimer"}
+        </button>
       </div>
 
       {/* 3 Platform Cards */}
@@ -279,8 +303,19 @@ export default function ArtistDetailPage() {
                     </p>
                   )}
                 </>
+              ) : platform === "instagram" || platform === "tiktok" ? (
+                /* Not connected — OAuth button for Instagram/TikTok */
+                <div className="mt-4 space-y-3">
+                  <p className="text-sm text-muted-foreground">Not connected</p>
+                  <a
+                    href={`${process.env.NEXT_PUBLIC_API_URL || "http://localhost:3001"}/oauth/${platform}/authorize?artistId=${artistId}`}
+                    className={`block w-full rounded-md px-3 py-1.5 text-sm font-medium text-center transition-colors ${cfg.bg} ${cfg.color} hover:opacity-80`}
+                  >
+                    Connect {cfg.label}
+                  </a>
+                </div>
               ) : (
-                /* Not connected — inline connect form */
+                /* Not connected — inline connect form for YouTube */
                 <div className="mt-4 space-y-3">
                   <p className="text-sm text-muted-foreground">Not connected</p>
                   <input
