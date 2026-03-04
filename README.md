@@ -2,6 +2,8 @@
 
 Analytics dashboard for music artists. Track followers, views, engagement and growth across YouTube, Instagram and TikTok.
 
+![ArtistMetrics Dashboard](screenshots/Screenshot%202026-03-04%20at%2020-37-33%20ArtistMetrics.png)
+
 ## Tech Stack
 
 - **Frontend**: Next.js 15 (App Router), React 19, Tailwind CSS 4, shadcn/ui
