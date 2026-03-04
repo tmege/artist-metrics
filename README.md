@@ -4,6 +4,8 @@ Analytics dashboard for music artists. Track followers, views, engagement and gr
 
 ![ArtistMetrics Dashboard](screenshots/Screenshot%202026-03-04%20at%2020-37-33%20ArtistMetrics.png)
 
+![ArtistMetrics Dashboard — YouTube metrics](screenshots/Screenshot%202026-03-04%20at%2020-44-53%20ArtistMetrics.png)
+
 ## Tech Stack
 
 - **Frontend**: Next.js 15 (App Router), React 19, Tailwind CSS 4, shadcn/ui
@@ -96,11 +98,8 @@ cp .env.example .env
 # Run Drizzle migrations
 pnpm --filter api drizzle-kit migrate
 
-# Start backend
-pnpm dev:api
-
-# Start frontend (in another terminal)
-pnpm dev:web
+# Start both servers (API + Web)
+./dev.sh
 ```
 
 ### Verify
@@ -138,6 +137,7 @@ Optional (enable platform integrations):
 
 | Command | Description |
 |---|---|
+| `./dev.sh` | Start both servers (API + Web) |
 | `pnpm dev:web` | Start frontend dev server |
 | `pnpm dev:api` | Start backend dev server |
 | `pnpm build:web` | Build frontend for production |
