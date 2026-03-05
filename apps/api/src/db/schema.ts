@@ -62,7 +62,7 @@ export const socialAccounts = pgTable(
     artistId: uuid("artist_id")
       .notNull()
       .references(() => artists.id, { onDelete: "cascade" }),
-    platform: text("platform", { enum: ["youtube", "instagram", "tiktok"] }).notNull(),
+    platform: text("platform", { enum: ["youtube", "instagram", "tiktok", "spotify", "apple_music", "deezer", "youtube_music"] }).notNull(),
     platformAccountId: text("platform_account_id").notNull(),
     username: text("username"),
     isOAuthConnected: boolean("is_oauth_connected").default(false).notNull(),

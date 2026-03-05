@@ -5,10 +5,30 @@ import { apiFetch } from "@/lib/api";
 import { useParams, useRouter } from "next/navigation";
 import {
   Music,
+  Pencil,
+  Check,
   RefreshCw,
   Trash2,
 } from "lucide-react";
 import { useArtists } from "@/contexts/artists-context";
+import { MetricsChart } from "@/components/metrics-chart";
+
+interface YouTubeVideo {
+  videoId: string;
+  title: string;
+  publishedAt: string;
+  thumbnailUrl: string;
+  viewCount: number;
+  likeCount: number;
+}
+
+interface SpotifyTrack {
+  trackId: string;
+  name: string;
+  albumName: string;
+  albumImageUrl: string | null;
+  popularity: number;
+}
 
 interface SocialMetrics {
   followers: number | null;
@@ -17,11 +37,18 @@ interface SocialMetrics {
   likes: number | null;
   engagementRate: number | null;
   fetchedAt: string;
+  platformData?: {
+    recentVideos?: YouTubeVideo[];
+    topTracks?: SpotifyTrack[];
+    popularity?: number;
+    genres?: string[];
+    [key: string]: unknown;
+  } | null;
 }
 
 interface SocialAccount {
   id: string;
-  platform: "youtube" | "instagram" | "tiktok";
+  platform: Platform;
   platformAccountId: string;
   username: string | null;
   isOAuthConnected: boolean;
@@ -35,10 +62,14 @@ interface ArtistDetail {
   socialAccounts: SocialAccount[];
 }
 
-const PLATFORMS = ["youtube", "instagram", "tiktok"] as const;
-type Platform = (typeof PLATFORMS)[number];
+const SOCIAL_PLATFORMS = ["youtube", "instagram", "tiktok"] as const;
+const STREAMING_PLATFORMS = ["spotify", "apple_music", "deezer", "youtube_music"] as const;
+const ALL_PLATFORMS = [...SOCIAL_PLATFORMS, ...STREAMING_PLATFORMS] as const;
+type Platform = (typeof ALL_PLATFORMS)[number];
 
-const platformConfig: Record<Platform, { label: string; color: string; bg: string; border: string; placeholder: string }> = {
+interface PlatformConfig { label: string; color: string; bg: string; border: string; placeholder: string }
+
+const platformConfig: Record<Platform, PlatformConfig> = {
   youtube: {
     label: "YouTube",
     color: "text-red-500",
@@ -59,6 +90,34 @@ const platformConfig: Record<Platform, { label: string; color: string; bg: strin
     bg: "bg-cyan-400/10",
     border: "border-cyan-400/30",
     placeholder: "https://tiktok.com/@username or @username",
+  },
+  spotify: {
+    label: "Spotify",
+    color: "text-green-500",
+    bg: "bg-green-500/10",
+    border: "border-green-500/30",
+    placeholder: "https://open.spotify.com/artist/... or artist name",
+  },
+  apple_music: {
+    label: "Apple Music",
+    color: "text-rose-400",
+    bg: "bg-rose-400/10",
+    border: "border-rose-400/30",
+    placeholder: "https://music.apple.com/artist/... or artist name",
+  },
+  deezer: {
+    label: "Deezer",
+    color: "text-purple-500",
+    bg: "bg-purple-500/10",
+    border: "border-purple-500/30",
+    placeholder: "https://deezer.com/artist/... or artist name",
+  },
+  youtube_music: {
+    label: "YouTube Music",
+    color: "text-orange-500",
+    bg: "bg-orange-500/10",
+    border: "border-orange-500/30",
+    placeholder: "https://music.youtube.com/channel/... or artist name",
   },
 };
 
@@ -81,9 +140,15 @@ export default function ArtistDetailPage() {
     youtube: "",
     instagram: "",
     tiktok: "",
+    spotify: "",
+    apple_music: "",
+    deezer: "",
+    youtube_music: "",
   });
   const [connectErrors, setConnectErrors] = useState<Record<string, string | null>>({});
   const [deleting, setDeleting] = useState(false);
+  const [editingName, setEditingName] = useState(false);
+  const [nameInput, setNameInput] = useState("");
 
   const artistId = params.id as string;
 
@@ -123,8 +188,27 @@ export default function ArtistDetailPage() {
     }
   }
 
+  async function handleSaveName() {
+    const trimmed = nameInput.trim();
+    if (!trimmed || trimmed === artist?.name) {
+      setEditingName(false);
+      return;
+    }
+    try {
+      const res = await apiFetch<{ data: { name: string } }>(`/artists/${artistId}`, {
+        method: "PUT",
+        body: JSON.stringify({ name: trimmed }),
+      });
+      setArtist((prev) => prev ? { ...prev, name: res.data.name } : prev);
+      setEditingName(false);
+      refreshArtists();
+    } catch (err) {
+      alert(err instanceof Error ? err.message : "Failed to update name");
+    }
+  }
+
   async function handleDelete() {
-    if (!confirm(`Supprimer ${artist?.name} ? Cette action est irréversible.`)) return;
+    if (!confirm(`Delete ${artist?.name}? This action is irreversible.`)) return;
     setDeleting(true);
     try {
       await apiFetch(`/artists/${artistId}`, { method: "DELETE" });
@@ -191,7 +275,41 @@ export default function ArtistDetailPage() {
             </div>
           )}
           <div>
-            <h3 className="text-2xl font-bold">{artist.name}</h3>
+            {editingName ? (
+              <div className="flex items-center gap-2">
+                <input
+                  autoFocus
+                  value={nameInput}
+                  onChange={(e) => setNameInput(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter") handleSaveName();
+                    if (e.key === "Escape") setEditingName(false);
+                  }}
+                  className="rounded-md border border-border bg-background px-2 py-1 text-2xl font-bold text-foreground focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary"
+                />
+                <button
+                  onClick={handleSaveName}
+                  className="rounded-md p-1.5 text-emerald-500 hover:bg-emerald-500/10 transition-colors"
+                  title="Save"
+                >
+                  <Check className="h-5 w-5" />
+                </button>
+              </div>
+            ) : (
+              <div className="flex items-center gap-2">
+                <h3 className="text-2xl font-bold">{artist.name}</h3>
+                <button
+                  onClick={() => {
+                    setNameInput(artist.name);
+                    setEditingName(true);
+                  }}
+                  className="rounded-md p-1 text-muted-foreground hover:bg-secondary hover:text-foreground transition-colors"
+                  title="Edit name"
+                >
+                  <Pencil className="h-4 w-4" />
+                </button>
+              </div>
+            )}
             <p className="text-sm text-muted-foreground">
               {artist.socialAccounts.length} connected account
               {artist.socialAccounts.length !== 1 ? "s" : ""}
@@ -201,16 +319,16 @@ export default function ArtistDetailPage() {
         <button
           onClick={handleDelete}
           disabled={deleting}
-          className="inline-flex items-center gap-2 rounded-md border border-red-500/30 px-3 py-2 text-sm font-medium text-red-500 hover:bg-red-500/10 transition-colors disabled:opacity-50"
+          title="Delete artist"
+          className="rounded-md border border-red-500/30 p-2 text-red-500 hover:bg-red-500/10 transition-colors disabled:opacity-50"
         >
-          <Trash2 className="h-4 w-4" />
-          {deleting ? "Suppression..." : "Supprimer"}
+          <Trash2 className={`h-4 w-4 ${deleting ? "animate-pulse" : ""}`} />
         </button>
       </div>
 
-      {/* 3 Platform Cards */}
+      {/* Social Platform Cards */}
       <div className="grid gap-4 lg:grid-cols-3">
-        {PLATFORMS.map((platform) => {
+        {SOCIAL_PLATFORMS.map((platform) => {
           const cfg = platformConfig[platform];
           const account = accountByPlatform[platform];
           const m = account?.latestMetrics;
@@ -283,6 +401,11 @@ export default function ArtistDetailPage() {
                       <p className="mt-3 text-xs text-muted-foreground">
                         Last synced: {new Date(m.fetchedAt).toLocaleString()}
                       </p>
+
+                      <MetricsChart
+                        artistId={artistId}
+                        accountId={account.id}
+                      />
                     </>
                   ) : !account.isOAuthConnected &&
                     (platform === "instagram" || platform === "tiktok") ? (
@@ -343,6 +466,214 @@ export default function ArtistDetailPage() {
           );
         })}
       </div>
+
+      {/* Streaming Platforms */}
+      {(() => {
+        return (
+          <div className="space-y-4">
+            <h4 className="text-lg font-semibold">Streaming</h4>
+
+            {/* Individual streaming cards */}
+            <div className="grid gap-4 lg:grid-cols-4 sm:grid-cols-2">
+              {STREAMING_PLATFORMS.map((platform) => {
+                const cfg = platformConfig[platform];
+                const account = accountByPlatform[platform];
+                const m = account?.latestMetrics;
+
+                return (
+                  <div
+                    key={platform}
+                    className={`rounded-lg border bg-card p-5 ${account ? "border-border" : cfg.border + " border-dashed"}`}
+                  >
+                    <div className="flex items-center justify-between">
+                      <span
+                        className={`inline-flex items-center rounded-md px-2.5 py-0.5 text-xs font-medium ${cfg.color} ${cfg.bg}`}
+                      >
+                        {cfg.label}
+                      </span>
+                      {account && (
+                        <div className="flex items-center gap-1">
+                          <button
+                            onClick={() => handleSync(account.id)}
+                            disabled={syncing === account.id}
+                            className="rounded-md p-1.5 text-muted-foreground hover:bg-secondary hover:text-foreground transition-colors disabled:opacity-50"
+                            title="Sync metrics"
+                          >
+                            <RefreshCw
+                              className={`h-4 w-4 ${syncing === account.id ? "animate-spin" : ""}`}
+                            />
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => handleDisconnect(account.id)}
+                            className="rounded-md p-1.5 text-muted-foreground hover:bg-red-500/10 hover:text-red-500 transition-colors"
+                            title="Disconnect"
+                          >
+                            <Trash2 className="h-4 w-4" />
+                          </button>
+                        </div>
+                      )}
+                    </div>
+
+                    {account ? (
+                      <>
+                        <p className="mt-2 text-sm font-medium truncate">
+                          {account.username || account.platformAccountId}
+                        </p>
+                        {m && (m.followers != null || m.views != null || m.posts != null || m.platformData?.topTracks?.length) ? (
+                          <>
+                            <div className="mt-3 grid grid-cols-2 gap-2">
+                              {m.followers != null && (
+                                <div>
+                                  <p className="text-xs text-muted-foreground">
+                                    {platform === "deezer" ? "Fans" : "Followers"}
+                                  </p>
+                                  <p className="text-lg font-semibold">{formatNumber(m.followers)}</p>
+                                </div>
+                              )}
+                              {platform === "spotify" && m.platformData?.popularity != null && (
+                                <div>
+                                  <p className="text-xs text-muted-foreground">Popularity</p>
+                                  <p className="text-lg font-semibold">{String(m.platformData.popularity)}<span className="text-xs text-muted-foreground">/100</span></p>
+                                </div>
+                              )}
+                              {m.posts != null && (
+                                <div>
+                                  <p className="text-xs text-muted-foreground">
+                                    {platform === "deezer" ? "Albums" : "Posts"}
+                                  </p>
+                                  <p className="text-lg font-semibold">{formatNumber(m.posts)}</p>
+                                </div>
+                              )}
+                              {m.views != null && (
+                                <div>
+                                  <p className="text-xs text-muted-foreground">Views</p>
+                                  <p className="text-lg font-semibold">{formatNumber(m.views)}</p>
+                                </div>
+                              )}
+                            </div>
+                            {platform === "spotify" && m.platformData?.genres && m.platformData.genres.length > 0 && (
+                              <div className="mt-2">
+                                <p className="text-xs text-muted-foreground mb-1">Genres</p>
+                                <div className="flex flex-wrap gap-1">
+                                  {m.platformData.genres.map((g) => (
+                                    <span key={g} className="text-[10px] bg-secondary px-1.5 py-0.5 rounded-full">{g}</span>
+                                  ))}
+                                </div>
+                              </div>
+                            )}
+                            <p className="mt-2 text-xs text-muted-foreground">
+                              Last synced: {new Date(m.fetchedAt).toLocaleString("en-US")}
+                            </p>
+
+                            {/* Top 5 tracks for Spotify */}
+                            {platform === "spotify" && (() => {
+                              const tracks = m.platformData?.topTracks;
+                              if (!tracks?.length) return null;
+                              return (
+                                <div className="mt-3 space-y-1.5">
+                                  <p className="text-xs font-medium text-muted-foreground">Top Songs</p>
+                                  {tracks.map((t, i) => (
+                                    <a
+                                      key={t.trackId}
+                                      href={`https://open.spotify.com/track/${t.trackId}`}
+                                      target="_blank"
+                                      rel="noopener noreferrer"
+                                      className="flex items-center gap-2 rounded-md p-1.5 hover:bg-secondary/50 transition-colors"
+                                    >
+                                      <span className="text-xs text-muted-foreground w-4 text-right flex-shrink-0">{i + 1}</span>
+                                      {t.albumImageUrl && (
+                                        <img
+                                          src={t.albumImageUrl}
+                                          alt={t.name}
+                                          className="h-8 w-8 rounded object-cover flex-shrink-0"
+                                        />
+                                      )}
+                                      <div className="min-w-0 flex-1">
+                                        <p className="text-xs font-medium truncate">{t.name}</p>
+                                        <p className="text-[10px] text-muted-foreground truncate">
+                                          {t.albumName}
+                                        </p>
+                                      </div>
+                                    </a>
+                                  ))}
+                                </div>
+                              );
+                            })()}
+
+                            {/* Top 5 songs for YouTube Music */}
+                            {platform === "youtube_music" && (() => {
+                              const videos = m.platformData?.recentVideos;
+                              if (!videos?.length) return null;
+                              const sorted = [...videos].sort((a, b) => b.viewCount - a.viewCount);
+                              return (
+                                <div className="mt-3 space-y-1.5">
+                                  <p className="text-xs font-medium text-muted-foreground">Top Songs</p>
+                                  {sorted.map((v, i) => (
+                                    <a
+                                      key={v.videoId}
+                                      href={`https://music.youtube.com/watch?v=${v.videoId}`}
+                                      target="_blank"
+                                      rel="noopener noreferrer"
+                                      className="flex items-center gap-2 rounded-md p-1.5 hover:bg-secondary/50 transition-colors"
+                                    >
+                                      <span className="text-xs text-muted-foreground w-4 text-right flex-shrink-0">{i + 1}</span>
+                                      <img
+                                        src={v.thumbnailUrl}
+                                        alt={v.title}
+                                        className="h-8 w-8 rounded object-cover flex-shrink-0"
+                                      />
+                                      <div className="min-w-0 flex-1">
+                                        <p className="text-xs font-medium truncate">{v.title}</p>
+                                        <p className="text-[10px] text-muted-foreground">
+                                          {formatNumber(v.viewCount)} views
+                                        </p>
+                                      </div>
+                                    </a>
+                                  ))}
+                                </div>
+                              );
+                            })()}
+                          </>
+                        ) : (
+                          <p className="mt-3 text-xs text-muted-foreground italic">
+                            {platform === "apple_music"
+                              ? "Connected — no public metrics available"
+                              : "No metrics yet. Click sync to fetch."}
+                          </p>
+                        )}
+                      </>
+                    ) : (
+                      <div className="mt-4 space-y-2">
+                        <p className="text-sm text-muted-foreground">Not connected</p>
+                        <input
+                          type="text"
+                          value={connectUrls[platform]}
+                          onChange={(e) =>
+                            setConnectUrls((prev) => ({ ...prev, [platform]: e.target.value }))
+                          }
+                          placeholder={cfg.placeholder}
+                          className="block w-full rounded-md border border-border bg-background px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary"
+                        />
+                        {connectErrors[platform] && (
+                          <p className="text-xs text-red-500">{connectErrors[platform]}</p>
+                        )}
+                        <button
+                          onClick={() => handleConnect(platform)}
+                          disabled={connectingPlatform === platform || !connectUrls[platform].trim()}
+                          className={`w-full rounded-md px-3 py-1.5 text-sm font-medium transition-colors disabled:opacity-50 ${cfg.bg} ${cfg.color} hover:opacity-80`}
+                        >
+                          {connectingPlatform === platform ? "Connecting..." : `Connect ${cfg.label}`}
+                        </button>
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        );
+      })()}
     </div>
   );
 }

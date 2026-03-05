@@ -25,6 +25,7 @@
     "fastify-plugin": "^5.1.0",
     "pino": "^9.6.0",
     "postgres": "^3.4.8",
+    "socialblade-com-api": "^3.2.0",
     "zod": "^3.24.0"
   },
   "devDependencies": {

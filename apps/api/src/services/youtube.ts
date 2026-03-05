@@ -248,3 +248,49 @@ export async function getRecentVideos(
     })
   );
 }
+
+/**
+ * Get most popular videos from a channel sorted by view count (requires API key).
+ */
+export async function getPopularVideos(
+  channelId: string,
+  apiKey: string,
+  maxResults = 5
+): Promise<YouTubeVideo[]> {
+  // Search endpoint supports order=viewCount
+  const searchUrl = `${YOUTUBE_API_BASE}/search?part=snippet&channelId=${channelId}&type=video&order=viewCount&maxResults=${maxResults}&key=${apiKey}`;
+  const searchRes = await fetch(searchUrl);
+  if (!searchRes.ok) throw new Error(`YouTube API error: ${searchRes.status}`);
+
+  const searchData = await searchRes.json();
+  const videoIds = searchData.items
+    ?.map((item: { id?: { videoId?: string } }) => item.id?.videoId)
+    .filter(Boolean)
+    .join(",");
+
+  if (!videoIds) return [];
+
+  // Fetch full stats for these videos
+  const videosUrl = `${YOUTUBE_API_BASE}/videos?part=snippet,statistics&id=${videoIds}&key=${apiKey}`;
+  const videosRes = await fetch(videosUrl);
+  if (!videosRes.ok) throw new Error(`YouTube API error: ${videosRes.status}`);
+
+  const videosData = await videosRes.json();
+  return (videosData.items || [])
+    .map(
+      (v: {
+        id: string;
+        snippet: { title: string; publishedAt: string; thumbnails?: { default?: { url?: string } } };
+        statistics: { viewCount?: string; likeCount?: string; commentCount?: string };
+      }) => ({
+        videoId: v.id,
+        title: v.snippet.title,
+        publishedAt: v.snippet.publishedAt,
+        thumbnailUrl: v.snippet.thumbnails?.default?.url || "",
+        viewCount: Number(v.statistics.viewCount) || 0,
+        likeCount: Number(v.statistics.likeCount) || 0,
+        commentCount: Number(v.statistics.commentCount) || 0,
+      })
+    )
+    .sort((a: YouTubeVideo, b: YouTubeVideo) => b.viewCount - a.viewCount);
+}

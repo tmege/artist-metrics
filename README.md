@@ -1,10 +1,12 @@
 # ArtistMetrics
 
-Analytics dashboard for music artists. Track followers, views, engagement and growth across YouTube, Instagram and TikTok.
+Analytics dashboard for music artists. Track followers, views, engagement and growth across social media and streaming platforms.
 
 ![ArtistMetrics Dashboard](screenshots/Screenshot%202026-03-04%20at%2020-37-33%20ArtistMetrics.png)
 
 ![ArtistMetrics Dashboard — YouTube metrics](screenshots/Screenshot%202026-03-04%20at%2020-44-53%20ArtistMetrics.png)
+
+![ArtistMetrics Dashboard — Streaming platforms](screenshots/Screenshot%202026-03-05%20at%2023-50-14%20ArtistMetrics.png)
 
 ## Tech Stack
 
@@ -29,7 +31,9 @@ artist-dashboard/
 │   │   │       └── artists/
 │   │   │           ├── page.tsx    # Artist selection prompt
 │   │   │           ├── new/        # Create artist
-│   │   │           └── [id]/       # Artist detail (YouTube, Instagram, TikTok cards)
+│   │   │           └── [id]/       # Artist detail (social + streaming cards)
+│   │   ├── src/components/
+│   │   │   └── metrics-chart.tsx   # Time-series chart (Recharts) with Social Blade history
 │   │   ├── src/contexts/
 │   │   │   └── artists-context.tsx # Shared artists list (React Context)
 │   │   ├── src/lib/
@@ -51,12 +55,14 @@ artist-dashboard/
 │           ├── routes/
 │           │   ├── health.ts       # GET /health
 │           │   ├── artists.ts      # CRUD /artists
-│           │   ├── social-accounts.ts  # Link/unlink/sync social accounts
+│           │   ├── social-accounts.ts  # Link/unlink/sync social + streaming accounts
 │           │   └── oauth.ts        # Instagram & TikTok OAuth flows
 │           ├── services/
 │           │   ├── youtube.ts      # YouTube Data API v3 (public API key)
 │           │   ├── instagram.ts    # Instagram Graph API (OAuth)
-│           │   └── tiktok.ts       # TikTok API (OAuth)
+│           │   ├── tiktok.ts       # TikTok API (OAuth)
+│           │   ├── streaming.ts    # Spotify, Deezer, Apple Music, YouTube Music
+│           │   └── socialblade.ts  # Social Blade historical metrics
 │           ├── jobs/
 │           │   └── sync-metrics.ts # Background sync every 6h
 │           └── lib/
@@ -66,17 +72,44 @@ artist-dashboard/
     └── shared/                     # Shared Zod schemas & TypeScript types
 ```
 
-## Social Platforms
+## Platforms
 
-| Platform | Without OAuth | With OAuth |
+### Social Media
+
+| Platform | Auth | Metrics |
 |---|---|---|
-| **YouTube** | Subscribers, views, videos (API key) | Advanced analytics |
-| **Instagram** | Link by username (no metrics) | Followers, posts, likes, insights |
-| **TikTok** | Link by username (no metrics) | Followers, likes, videos, views |
+| **YouTube** | API key (free) | Subscribers, views, videos |
+| **Instagram** | OAuth required | Followers, posts, likes, insights |
+| **TikTok** | OAuth required | Followers, likes, videos, views |
 
-All platforms can be linked via URL or handle. YouTube fetches public stats immediately via API key. Instagram and TikTok require OAuth to fetch metrics.
+> **Note:** Meta (Instagram) and TikTok OAuth require app review and verification before API access is granted.
 
-> **Note:** Meta (Instagram) and TikTok OAuth are not yet implemented. Both platforms require extensive app review and verification processes before API access is granted.
+### Streaming
+
+| Platform | Auth | Metrics | Limitations |
+|---|---|---|---|
+| **Spotify** | Embed scraping + optional [API credentials](https://developer.spotify.com/dashboard) | Top songs, followers, popularity, genres | Top songs always available; followers/popularity/genres require Spotify app in Extended Quota Mode |
+| **Deezer** | None (free public API) | Fans, albums | No stream counts — Deezer for Creators has no public API |
+| **Apple Music** | None (scrapes public page) | Artist name + image | No metrics at all — Apple exposes nothing publicly, and Apple Music for Artists has no API |
+| **YouTube Music** | YouTube API key (shared) | Subscribers, views, videos, top 5 songs | Full data via YouTube Data API |
+
+All platforms are linked via URL and fetch available stats immediately on connect.
+
+### Why no stream counts?
+
+Streaming analytics (play counts, listener demographics, revenue) are locked behind private artist dashboards:
+
+- **Spotify for Artists** — API restricted to Spotify partners, no public access even with OAuth
+- **Apple Music for Artists** — No API whatsoever, web dashboard only
+- **Deezer for Creators** — No API, web dashboard only
+
+OAuth login for these platforms gives access to **listener** data (playlists, listening history), not **artist** analytics.
+
+> **Future improvement:** Full streaming analytics (stream counts, listener demographics, playlist placements) could be unlocked by integrating a paid third-party aggregator API such as [Chartmetric](https://chartmetric.com) or [Soundcharts](https://soundcharts.com). Same situation as Instagram/TikTok where the Meta Developer and TikTok APIs require app review — these are gated integrations that would extend the dashboard's capabilities significantly.
+
+### Historical Charts (Social Blade)
+
+Metrics charts can display up to 30 days of history via Social Blade scraping (no key needed), or extended history with a Social Blade API key.
 
 ## Getting Started
 
@@ -129,9 +162,11 @@ Optional (enable platform integrations):
 
 | Variable | Description |
 |---|---|
-| `YOUTUBE_API_KEY` | YouTube Data API v3 key |
+| `YOUTUBE_API_KEY` | YouTube Data API v3 key (also used by YouTube Music) |
 | `INSTAGRAM_APP_ID` / `INSTAGRAM_APP_SECRET` | Facebook App credentials |
 | `TIKTOK_CLIENT_KEY` / `TIKTOK_CLIENT_SECRET` | TikTok Developer App credentials |
+| `SPOTIFY_CLIENT_ID` / `SPOTIFY_CLIENT_SECRET` | Spotify Developer App credentials |
+| `SOCIALBLADE_CLIENT_ID` / `SOCIALBLADE_TOKEN` | Social Blade API (extended history) |
 
 ## Scripts
 

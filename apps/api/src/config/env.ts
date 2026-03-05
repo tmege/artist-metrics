@@ -27,6 +27,14 @@ const envSchema = z.object({
   // TikTok OAuth (optional)
   TIKTOK_CLIENT_KEY: z.string().optional(),
   TIKTOK_CLIENT_SECRET: z.string().optional(),
+
+  // Spotify (optional — client credentials for artist data)
+  SPOTIFY_CLIENT_ID: z.string().optional(),
+  SPOTIFY_CLIENT_SECRET: z.string().optional(),
+
+  // Social Blade (optional — for historical metrics)
+  SOCIALBLADE_CLIENT_ID: z.string().optional(),
+  SOCIALBLADE_TOKEN: z.string().optional(),
 });
 
 export type Env = z.infer<typeof envSchema>;
