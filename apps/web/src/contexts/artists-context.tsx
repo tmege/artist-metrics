@@ -26,8 +26,8 @@ export function ArtistsProvider({ children }: { children: React.ReactNode }) {
     try {
       const res = await apiFetch<{ data: Artist[] }>("/artists");
       setArtists(res.data);
-    } catch {
-      // ignore
+    } catch (err) {
+      console.error("Failed to fetch artists:", err);
     } finally {
       setLoading(false);
     }
