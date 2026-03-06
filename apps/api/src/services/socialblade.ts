@@ -1,3 +1,4 @@
+import type { FastifyBaseLogger } from "fastify";
 import type { Env } from "../config/env.js";
 
 export interface HistoryRow {
@@ -24,13 +25,14 @@ export async function fetchHistory(
   platform: Platform,
   identifier: string,
   env: Env,
+  log?: FastifyBaseLogger,
 ): Promise<HistoryRow[]> {
   // Try official API first
   if (env.SOCIALBLADE_CLIENT_ID && env.SOCIALBLADE_TOKEN) {
     try {
       return await fetchFromOfficialAPI(platform, identifier, env);
     } catch (err) {
-      console.warn("[socialblade] Official API failed, trying scraping fallback:", err);
+      log?.warn(err, "[socialblade] Official API failed, trying scraping fallback");
     }
   }
 
@@ -38,7 +40,7 @@ export async function fetchHistory(
   try {
     return await fetchFromScraping(platform, identifier);
   } catch (err) {
-    console.warn("[socialblade] Scraping fallback failed:", err);
+    log?.warn(err, "[socialblade] Scraping fallback failed");
     return [];
   }
 }

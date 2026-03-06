@@ -447,6 +447,7 @@ export async function socialAccountRoutes(app: FastifyInstance) {
         platform,
         account.platformAccountId,
         app.env,
+        request.log,
       );
 
       // Update cache even if empty (avoids hammering on errors)

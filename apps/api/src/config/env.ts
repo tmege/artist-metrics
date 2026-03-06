@@ -5,6 +5,7 @@ const envSchema = z.object({
   HOST: z.string().default("0.0.0.0"),
   NODE_ENV: z.enum(["development", "production", "test"]).default("development"),
   FRONTEND_URL: z.string().url().default("http://localhost:3000"),
+  API_URL: z.string().url().optional(),
 
   // Database
   DATABASE_URL: z.string().min(1),
@@ -43,9 +44,8 @@ export function loadEnv(): Env {
   const result = envSchema.safeParse(process.env);
 
   if (!result.success) {
-    console.error("Invalid environment variables:");
-    console.error(result.error.flatten().fieldErrors);
-    process.exit(1);
+    const errors = result.error.flatten().fieldErrors;
+    throw new Error(`Invalid environment variables: ${JSON.stringify(errors)}`);
   }
 
   return result.data;

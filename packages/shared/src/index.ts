@@ -43,7 +43,7 @@ export type CreateArtist = z.infer<typeof createArtistSchema>;
 
 // ── Social Account Types ──
 
-export const platformSchema = z.enum(["youtube", "instagram", "tiktok"]);
+export const platformSchema = z.enum(["youtube", "instagram", "tiktok", "spotify", "apple_music", "deezer", "youtube_music"]);
 export type Platform = z.infer<typeof platformSchema>;
 
 export const socialAccountSchema = z.object({

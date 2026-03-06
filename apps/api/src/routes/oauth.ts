@@ -21,7 +21,8 @@ export async function oauthRoutes(app: FastifyInstance) {
       const { accountId } = request.query;
       if (!accountId) return reply.badRequest("accountId is required");
 
-      const redirectUri = `http://localhost:${env.PORT}/oauth/instagram/callback`;
+      const apiBase = env.API_URL || `http://localhost:${env.PORT}`;
+      const redirectUri = `${apiBase}/oauth/instagram/callback`;
       const state = Buffer.from(
         JSON.stringify({ accountId })
       ).toString("base64url");
@@ -60,7 +61,8 @@ export async function oauthRoutes(app: FastifyInstance) {
         return reply.badRequest("Invalid state parameter");
       }
 
-      const redirectUri = `http://localhost:${env.PORT}/oauth/instagram/callback`;
+      const apiBase = env.API_URL || `http://localhost:${env.PORT}`;
+      const redirectUri = `${apiBase}/oauth/instagram/callback`;
 
       // Exchange code for short-lived token
       const tokenRes = await fetch(
@@ -176,7 +178,8 @@ export async function oauthRoutes(app: FastifyInstance) {
       const { accountId } = request.query;
       if (!accountId) return reply.badRequest("accountId is required");
 
-      const redirectUri = `http://localhost:${env.PORT}/oauth/tiktok/callback`;
+      const apiBase = env.API_URL || `http://localhost:${env.PORT}`;
+      const redirectUri = `${apiBase}/oauth/tiktok/callback`;
       const state = Buffer.from(
         JSON.stringify({ accountId })
       ).toString("base64url");
@@ -215,7 +218,8 @@ export async function oauthRoutes(app: FastifyInstance) {
         return reply.badRequest("Invalid state parameter");
       }
 
-      const redirectUri = `http://localhost:${env.PORT}/oauth/tiktok/callback`;
+      const apiBase = env.API_URL || `http://localhost:${env.PORT}`;
+      const redirectUri = `${apiBase}/oauth/tiktok/callback`;
 
       // Exchange code for tokens
       const tokenRes = await fetch(
